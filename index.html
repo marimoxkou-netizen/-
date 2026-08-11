@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タスクカード管理</title>
+  <style>
+    :root {
+      --bg-color: #f4f6f8;
+      --card-bg: #ffffff;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 24px 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    /* カードリスト */
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* カードデザイン */
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--border);
+      display: flex;
+      gap: 16px;
+      position: relative;
+      user-select: none; /* 長押し時のテキスト選択防止 */
+      -webkit-user-select: none;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+
+    .card.completed {
+      opacity: 0.6;
+    }
+
+    .card.completed .card-title {
+      text-decoration: line-through;
+    }
+
+    .card-content {
+      flex: 1;
+      min-width: 0; /* overflowスクロールのために必要 */
+    }
+
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      padding-right: 28px; /* 削除ボタンのスペース */
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    /* 説明エリア：長かったらスクロール */
+    .card-desc {
+      font-size: 0.95rem;
+      color: var(--text-main);
+      max-height: 80px;
+      overflow-y: auto;
+      padding-right: 4px;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* カスタムスクロールバー */
+    .card-desc::-webkit-scrollbar {
+      width: 4px;
+    }
+    .card-desc::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    /* やる理由 */
+    .card-reason {
+      font-size: 0.85rem;
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: inline-block;
+      word-break: break-word;
+    }
+
+    .card-reason strong {
+      color: var(--primary);
+    }
+
+    /* チェックボックスエリア（右側） */
+    .card-checkbox-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-left: 8px;
+    }
+
+    .checkbox {
+      width: 24px;
+      height: 24px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    /* カード内の削除ボタン */
+    .btn-delete-card {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 1.2rem;
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s, background-color 0.2s;
+    }
+
+    .btn-delete-card:hover {
+      color: var(--danger);
+      background-color: #fee2e2;
+    }
+
+    /* モーダル (入力ダイアログ & 確認ダイアログ) */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 440px;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal h2 {
+      font-size: 1.25rem;
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text-muted);
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn-secondary {
+      background-color: #e5e7eb;
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background-color: #d1d5db;
+    }
+
+    .btn-danger {
+      background-color: var(--danger);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background-color: var(--danger-hover);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>タスクカード</h1>
+      <button class="btn btn-primary" id="openModalBtn">＋ 追加</button>
+    </div>
+
+    <!-- カード一覧 -->
+    <div class="card-list" id="cardList"></div>
+  </div>
+
+  <!-- 新規作成モーダル -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal">
+      <h2>新しいカードを追加</h2>
+      <form id="addForm">
+        <div class="form-group">
+          <label for="title">タイトル *</label>
+          <input type="text" id="title" required placeholder="例: 毎朝のランニング">
+        </div>
+        <div class="form-group">
+          <label for="description">説明</label>
+          <textarea id="description" placeholder="例: 近所の公園を20分間走る。長く書いても自動スクロール対応します。"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="reason">それをやる理由</label>
+          <input type="text" id="reason" placeholder="例: 体力をつけて健康維持するため">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="closeAddModalBtn">キャンセル</button>
+          <button type="submit" class="btn btn-primary">作成</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 削除確認モーダル -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+      <h2>確認</h2>
+      <p>本当にこのカードを削除しますか？</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="cancelDeleteBtn">キャンセル</button>
+        <button class="btn btn-danger" id="confirmDeleteBtn">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 初期サンプルデータ
+    let cards = [
+      {
+        id: 1,
+        title: "読書をする（毎日30分）",
+        description: "技術書やビジネス書を1日30分以上読む。段落を分けてじっくり読むことでインプットの質を上げ、日々の業務や個人的な学習効率を大幅に向上させることが目的。\n長時間読んでも途中で内容を見失わないようにノートを取りながら行うとさらに効果的。",
+        reason: "視野を広げ、新しい思考法を学ぶため",
+        completed: false
+      }
+    ];
+
+    let deleteTargetId = null;
+
+    // DOM要素
+    const cardList = document.getElementById('cardList');
+    const addModal = document.getElementById('addModal');
+    const confirmModal = document.getElementById('confirmModal');
+    const openModalBtn = document.getElementById('openModalBtn');
+    const closeModalBtn = document.getElementById('closeAddModalBtn');
+    const addForm = document.getElementById('addForm');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+    // レンダリング関数
+    function renderCards() {
+      cardList.innerHTML = '';
+      
+      cards.forEach(card => {
+        const cardEl = document.createElement('div');
+        cardEl.className = `card ${card.completed ? 'completed' : ''}`;
+        cardEl.dataset.id = card.id;
+
+        cardEl.innerHTML = `
+          <button class="btn-delete-card" title="削除" onclick="promptDelete(${card.id})">✕</button>
+          <div class="card-content">
+            <div class="card-header-row">
+              <div class="card-title">${escapeHtml(card.title)}</div>
+            </div>
+            ${card.description ? `<div class="card-desc">${escapeHtml(card.description)}</div>` : ''}
+            ${card.reason ? `<div class="card-reason"><strong>理由:</strong> ${escapeHtml(card.reason)}</div>` : ''}
+          </div>
+          <div class="card-checkbox-wrapper">
+            <input type="checkbox" class="checkbox" ${card.completed ? 'checked' : ''} onchange="toggleComplete(${card.id})">
+          </div>
+        `;
+
+        // 長押しイベントの設定（スマホ・PC両対応）
+        setupLongPress(cardEl, card.id);
+
+        cardList.appendChild(cardEl);
+      });
+    }
+
+    // 長押し検知（タップ/クリック長押し対応）
+    function setupLongPress(element, id) {
+      let timer = null;
+      const longPressDuration = 600; // 0.6秒
+
+      const start = (e) => {
+        // ボタンやチェックボックスのクリック時は長押しを無視
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+        
+        timer = setTimeout(() => {
+          // 長押し成功時にバイブレーション（スマホ対応時）
+          if (navigator.vibrate) navigator.vibrate(50);
+          promptDelete(id);
+        }, longPressDuration);
+      };
+
+      const cancel = () => {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      };
+
+      // タッチイベント (スマホ)
+      element.addEventListener('touchstart', start, { passive: true });
+      element.addEventListener('touchend', cancel);
+      element.addEventListener('touchmove', cancel);
+
+      // マウスイベント (PC)
+      element.addEventListener('mousedown', start);
+      element.addEventListener('mouseup', cancel);
+      element.addEventListener('mouseleave', cancel);
+    }
+
+    // チェックボックス切り替え
+    function toggleComplete(id) {
+      cards = cards.map(c => c.id === id ? { ...c, completed: !c.completed } : c);
+      renderCards();
+    }
+
+    // 削除の確認ダイアログ呼び出し
+    function promptDelete(id) {
+      deleteTargetId = id;
+      confirmModal.classList.add('active');
+    }
+
+    // 削除実行
+    confirmDeleteBtn.addEventListener('click', () => {
+      if (deleteTargetId !== null) {
+        cards = cards.filter(c => c.id !== deleteTargetId);
+        deleteTargetId = null;
+        confirmModal.classList.remove('active');
+        renderCards();
+      }
+    });
+
+    cancelDeleteBtn.addEventListener('click', () => {
+      confirmModal.classList.remove('active');
+      deleteTargetId = null;
+    });
+
+    // モーダル開閉
+    openModalBtn.addEventListener('click', () => addModal.classList.add('active'));
+    closeModalBtn.addEventListener('click', () => addModal.classList.remove('active'));
+
+    // 新規カード追加
+    addForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const reason = document.getElementById('reason').value.trim();
+
+      if (!title) return;
+
+      cards.push({
+        id: Date.now(),
+        title,
+        description,
+        reason,
+        completed: false
+      });
+
+      addForm.reset();
+      addModal.classList.remove('active');
+      renderCards();
+    });
+
+    // エスケープHTML対策
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // 初期表示
+    renderCards();
+  </script>
+</body>
+  </html>
